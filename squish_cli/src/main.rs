@@ -216,6 +216,7 @@ fn format_to_dxgiformat(f: Format) -> DxgiFormat {
         Format::Bc3 => DxgiFormat::BC3_UNorm_sRGB,
         Format::Bc4 => DxgiFormat::BC4_UNorm,
         Format::Bc5 => DxgiFormat::BC5_UNorm,
+        _ => panic!("Unsupported BC format!"),
     }
 }
 

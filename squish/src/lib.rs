@@ -38,6 +38,7 @@ use rayon::prelude::*;
 
 /// Defines a compression format
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
 pub enum Format {
     Bc1,
     Bc2,
