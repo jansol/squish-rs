@@ -37,6 +37,11 @@
 #![no_std]
 
 mod alpha;
+mod bc1;
+mod bc2;
+mod bc3;
+mod bc4;
+mod bc5;
 mod colourblock;
 mod colourfit;
 mod colourset;
@@ -46,6 +51,13 @@ use crate::colourfit::{ClusterFit, ColourFit, RangeFit, SingleColourFit};
 use crate::colourset::ColourSet;
 #[cfg(feature = "rayon")]
 use rayon::prelude::*;
+
+// re-export the BC formats
+pub use bc1::BC1;
+pub use bc2::BC2;
+pub use bc3::BC3;
+pub use bc4::BC4;
+pub use bc5::BC5;
 
 /// Defines a compression algorithm
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -276,166 +288,6 @@ fn compress_bc1_bc2_bc3_colour_block(
     }
 }
 
-pub struct BC1 {}
-
-impl private::Format for BC1 {
-    fn block_size() -> usize {
-        8
-    }
-}
-
-impl private::Decoder for BC1 {
-    fn decompress_block(block: &[u8]) -> [[u8; 4]; 16] {
-        use private::Format;
-        assert_eq!(block.len(), Self::block_size());
-        // decompress colour block
-        colourblock::decompress(block, true)
-    }
-}
-
-impl Decoder for BC1 {}
-
-impl private::Encoder for BC1 {
-    fn compress_block_masked(rgba: [[u8; 4]; 16], mask: u32, params: Params, output: &mut [u8]) {
-        compress_bc1_bc2_bc3_colour_block(rgba, mask, params, output, true)
-    }
-}
-
-impl Encoder for BC1 {}
-
-pub struct BC2 {}
-
-impl private::Format for BC2 {
-    fn block_size() -> usize {
-        16
-    }
-}
-
-impl private::Decoder for BC2 {
-    fn decompress_block(block: &[u8]) -> [[u8; 4]; 16] {
-        use private::Format;
-        assert_eq!(block.len(), Self::block_size());
-        // decompress colour block
-        let mut rgba = colourblock::decompress(&block[8..16], true);
-        // decompress alpha block(s)
-        alpha::decompress_bc2(&mut rgba, &block[..8]);
-        rgba
-    }
-}
-
-impl Decoder for BC2 {}
-
-impl private::Encoder for BC2 {
-    fn compress_block_masked(rgba: [[u8; 4]; 16], mask: u32, params: Params, output: &mut [u8]) {
-        compress_bc1_bc2_bc3_colour_block(rgba, mask, params, output, false);
-
-        // compress alpha block(s)
-        alpha::compress_bc2(&rgba, mask, &mut output[..8]);
-    }
-}
-
-impl Encoder for BC2 {}
-
-pub struct BC3 {}
-
-impl private::Format for BC3 {
-    fn block_size() -> usize {
-        16
-    }
-}
-
-impl private::Decoder for BC3 {
-    fn decompress_block(block: &[u8]) -> [[u8; 4]; 16] {
-        use private::Format;
-        assert_eq!(block.len(), Self::block_size());
-        // decompress colour block
-        let mut rgba = colourblock::decompress(&block[8..16], true);
-        // decompress alpha block(s)
-        alpha::decompress_bc3(&mut rgba, 3, &block[..8]);
-        rgba
-    }
-}
-
-impl Decoder for BC3 {}
-
-impl private::Encoder for BC3 {
-    fn compress_block_masked(rgba: [[u8; 4]; 16], mask: u32, params: Params, output: &mut [u8]) {
-        compress_bc1_bc2_bc3_colour_block(rgba, mask, params, output, false);
-
-        // compress alpha block(s)
-        alpha::compress_bc3(&rgba, 3, mask, &mut output[..8]);
-    }
-}
-
-impl Encoder for BC3 {}
-
-pub struct BC4 {}
-
-impl private::Format for BC4 {
-    fn block_size() -> usize {
-        8
-    }
-}
-
-impl private::Decoder for BC4 {
-    fn decompress_block(block: &[u8]) -> [[u8; 4]; 16] {
-        use private::Format;
-        assert_eq!(block.len(), Self::block_size());
-        // decompress alpha
-        let mut rgba = [[0u8; 4]; 16];
-        alpha::decompress_bc3(&mut rgba, 0, &block[..8]);
-        // splat decompressed value into g and b channels
-        for ref mut pixel in rgba {
-            pixel[1] = pixel[0];
-            pixel[2] = pixel[0];
-        }
-        rgba
-    }
-}
-
-impl Decoder for BC4 {}
-
-impl private::Encoder for BC4 {
-    fn compress_block_masked(rgba: [[u8; 4]; 16], mask: u32, _params: Params, output: &mut [u8]) {
-        // compress alpha block(s)
-        alpha::compress_bc3(&rgba, 0, mask, &mut output[..8]);
-    }
-}
-
-impl Encoder for BC4 {}
-
-pub struct BC5 {}
-
-impl private::Format for BC5 {
-    fn block_size() -> usize {
-        16
-    }
-}
-
-impl private::Decoder for BC5 {
-    fn decompress_block(block: &[u8]) -> [[u8; 4]; 16] {
-        use private::Format;
-        assert_eq!(block.len(), Self::block_size());
-        // decompress alpha
-        let mut rgba = [[0u8; 4]; 16];
-        alpha::decompress_bc3(&mut rgba, 0, &block[..8]);
-        alpha::decompress_bc3(&mut rgba, 1, &block[8..16]);
-        rgba
-    }
-}
-
-impl Decoder for BC5 {}
-
-impl private::Encoder for BC5 {
-    fn compress_block_masked(rgba: [[u8; 4]; 16], mask: u32, _params: Params, output: &mut [u8]) {
-        // compress alpha block(s)
-        alpha::compress_bc3(&rgba, 0, mask, &mut output[0..8]);
-        alpha::compress_bc3(&rgba, 1, mask, &mut output[8..16]);
-    }
-}
-
-impl Encoder for BC5 {}
-
 //--------------------------------------------------------------------------------
 // Unit tests
 //--------------------------------------------------------------------------------
@@ -445,181 +297,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_storage_requirements() {
-        assert_eq!(BC1::compressed_size(16, 32), 256);
-        assert_eq!(BC1::compressed_size(15, 32), 256);
-        assert_eq!(BC2::compressed_size(16, 32), 512);
-        assert_eq!(BC2::compressed_size(15, 32), 512);
-        assert_eq!(BC3::compressed_size(16, 32), 512);
-        assert_eq!(BC3::compressed_size(15, 32), 512);
-        assert_eq!(BC4::compressed_size(16, 32), 256);
-        assert_eq!(BC4::compressed_size(15, 32), 256);
-        assert_eq!(BC5::compressed_size(16, 32), 512);
-        assert_eq!(BC5::compressed_size(15, 32), 512);
-    }
-
-    // The test-pattern is a gray-scale checkerboard of size 4x4 with 0xFF in the top-left.
-    // On top of that, the four middle pixels are set to 0x7F.
-    static DECODED_BLOCK_GRAY_4X4: &[u8] = &[
-        0xFF, 0x00, 0xFF, 0x00, // row 0
-        0x00, 0x7F, 0x7F, 0xFF, // row 1
-        0xFF, 0x7F, 0x7F, 0x00, // row 2
-        0x00, 0xFF, 0x00, 0xFF, // row 3
-    ];
-
-    fn decoded_block_gray_4x4_as_rgba() -> [u8; 4 * 4 * 4] {
-        let mut output = [0u8; 4 * 4 * 4];
-        for i in 0..DECODED_BLOCK_GRAY_4X4.len() {
-            output[i * 4 + 0] = DECODED_BLOCK_GRAY_4X4[i]; // R
-            output[i * 4 + 1] = DECODED_BLOCK_GRAY_4X4[i]; // G
-            output[i * 4 + 2] = DECODED_BLOCK_GRAY_4X4[i]; // B
-            output[i * 4 + 3] = 0xFF; //A
-        }
-        output
-    }
-
-    #[test]
-    fn test_bc1_decompression_gray() {
-        // BC1 data created with AMD Compressonator v4.1.5083
-        let encoded: [u8; 8] = [0x00, 0x00, 0xFF, 0xFF, 0x11, 0x68, 0x29, 0x44];
-        let mut output_actual = [0u8; 4 * 4 * 4];
-        BC1::decompress(&encoded, 4, 4, &mut output_actual);
-        assert_eq!(output_actual, decoded_block_gray_4x4_as_rgba());
-    }
-
-    #[test]
-    fn test_bc1_compression_gray() {
-        fn test(algorithm: Algorithm) {
-            let mut output_actual = [0u8; 8];
-            BC1::compress(
-                &decoded_block_gray_4x4_as_rgba(),
-                4,
-                4,
-                Params {
-                    algorithm,
-                    weights: COLOUR_WEIGHTS_UNIFORM,
-                    weigh_colour_by_alpha: false,
-                },
-                &mut output_actual,
-            );
-            // BC1 data created with AMD Compressonator v4.1.5083
-            let output_expected = [0x00, 0x00, 0xFF, 0xFF, 0x11, 0x68, 0x29, 0x44];
-            assert_eq!(output_actual, output_expected);
-        }
-
-        // all algorithms should result in the same expected output
-        test(Algorithm::ClusterFit);
-        test(Algorithm::RangeFit);
-        test(Algorithm::IterativeClusterFit);
-    }
-
-    // A colour test-pattern (RGB) with the first row in one colour,
-    // the second in another and the third and last row in a third colour.
-    static DECODED_BLOCK_COLOUR_4X4: &[u8] = &[
-        255, 150, 74, 255, 150, 74, 255, 150, 74, 255, 150, 74, // row 0
-        255, 120, 52, 255, 120, 52, 255, 120, 52, 255, 120, 52, // row 1
-        255, 105, 41, 255, 105, 41, 255, 105, 41, 255, 105, 41, // row 2
-        255, 105, 41, 255, 105, 41, 255, 105, 41, 255, 105, 41, // row 3
-    ];
-
-    // BC1 data created with AMD Compressonator v4.1.5083 and is the same as libsquish
-    static ENCODED_BLOCK_COLOUR_4X4: [u8; 8] = [0xA9, 0xFC, 0x45, 0xFB, 0x00, 0xFF, 0x55, 0x55];
-
-    fn decoded_block_colour_4x4_as_rgba() -> [u8; 4 * 4 * 4] {
-        let mut output = [0u8; 4 * 4 * 4];
-        for i in 0..4 * 4 {
-            output[i * 4 + 0] = DECODED_BLOCK_COLOUR_4X4[i * 3 + 0]; // R
-            output[i * 4 + 1] = DECODED_BLOCK_COLOUR_4X4[i * 3 + 1]; // G
-            output[i * 4 + 2] = DECODED_BLOCK_COLOUR_4X4[i * 3 + 2]; // B
-            output[i * 4 + 3] = 0xFF; //A
-        }
-        output
-    }
-
-    #[test]
-    fn test_bc1_decompression_colour() {
-        let encoded: [u8; 8] = ENCODED_BLOCK_COLOUR_4X4;
-        let mut output_actual = [0u8; 4 * 4 * 4];
-        BC1::decompress(&encoded, 4, 4, &mut output_actual);
-        assert_eq!(output_actual, decoded_block_colour_4x4_as_rgba());
-    }
-
-    #[test]
-    fn test_bc1_compression_colour() {
-        fn test(algorithm: Algorithm) {
-            let mut output_actual = [0u8; 8];
-            BC1::compress(
-                &decoded_block_colour_4x4_as_rgba(),
-                4,
-                4,
-                Params {
-                    algorithm,
-                    weights: COLOUR_WEIGHTS_UNIFORM,
-                    weigh_colour_by_alpha: false,
-                },
-                &mut output_actual,
-            );
-            let output_expected = ENCODED_BLOCK_COLOUR_4X4;
-            assert_eq!(output_actual, output_expected);
-        }
-
-        // all algorithms should result in the same expected output
-        test(Algorithm::ClusterFit);
-        test(Algorithm::RangeFit);
-        test(Algorithm::IterativeClusterFit);
-    }
-
-    // Same RGB colours as DECODED_BLOCK_COLOUR_4X4, with additional alpha channel.
-    // Alpha starts at 0x00, then increases by 0x11 for every pixel.
-    static DECODED_BLOCK_RGBA_4X4: &[u8] = &[
-        0xFF, 0x96, 0x4A, 0x00, 0xFF, 0x96, 0x4A, 0x11, // row 0, left half
-        0xFF, 0x96, 0x4A, 0x22, 0xFF, 0x96, 0x4A, 0x33, // row 0, right half
-        0xFF, 0x78, 0x34, 0x44, 0xFF, 0x78, 0x34, 0x55, // row 1, left half
-        0xFF, 0x78, 0x34, 0x66, 0xFF, 0x78, 0x34, 0x77, // row 1, right half
-        0xFF, 0x69, 0x29, 0x88, 0xFF, 0x69, 0x29, 0x99, // row 2, left half
-        0xFF, 0x69, 0x29, 0xAA, 0xFF, 0x69, 0x29, 0xBB, // row 2, right half
-        0xFF, 0x69, 0x29, 0xCC, 0xFF, 0x69, 0x29, 0xDD, // row 3, left half
-        0xFF, 0x69, 0x29, 0xEE, 0xFF, 0x69, 0x29, 0xFF, // row 3, right half
-    ];
-
-    // Combine the same alpha channel (BC2-compressed) with RGB from ENCODED_BLOCK_COLOUR_4X4.
-    // Alpha BC2 data created with GIMP DDS export.
-    static ENCODED_BC2_BLOCK_ALPHA_4X4: [u8; 16] = [
-        0x10, 0x32, 0x54, 0x76, 0x98, 0xBA, 0xDC, 0xFE, // Alpha
-        0xA9, 0xFC, 0x45, 0xFB, 0x00, 0xFF, 0x55, 0x55, // RGB block
-    ];
-
-    #[test]
-    fn test_bc2_decompression_colour() {
-        let encoded: [u8; 16] = ENCODED_BC2_BLOCK_ALPHA_4X4;
-        let mut output_actual = [0u8; 4 * 4 * 4];
-        BC2::decompress(&encoded, 4, 4, &mut output_actual);
-        let output_expected = DECODED_BLOCK_RGBA_4X4;
-        assert_eq!(output_actual, output_expected);
-    }
-
-    #[test]
-    fn test_bc2_compression_colour() {
-        fn test(algorithm: Algorithm) {
-            let mut output_actual = [0u8; 16];
-            BC2::compress(
-                &DECODED_BLOCK_RGBA_4X4,
-                4,
-                4,
-                Params {
-                    algorithm,
-                    weights: COLOUR_WEIGHTS_UNIFORM,
-                    weigh_colour_by_alpha: false,
-                },
-                &mut output_actual,
-            );
-            let output_expected = ENCODED_BC2_BLOCK_ALPHA_4X4;
-            assert_eq!(output_actual, output_expected);
-        }
-
-        // all algorithms should result in the same expected output
-        test(Algorithm::ClusterFit);
-        test(Algorithm::RangeFit);
-        test(Algorithm::IterativeClusterFit);
+    fn test_num_blocks() {
+        assert_eq!(num_blocks(0), 0);
+        assert_eq!(num_blocks(1), 1);
+        assert_eq!(num_blocks(2), 1);
+        assert_eq!(num_blocks(3), 1);
+        assert_eq!(num_blocks(4), 1);
+        assert_eq!(num_blocks(5), 2);
+        assert_eq!(num_blocks(6), 2);
     }
 }
