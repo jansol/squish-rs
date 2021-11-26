@@ -25,13 +25,13 @@ use core::f32;
 use crate::colourblock;
 use crate::colourset::ColourSet;
 use crate::math::{Sym3x3, Vec3};
-use crate::{ColourWeights, Format};
+use crate::ColourWeights;
 
 use super::ColourFitImpl;
 
 pub struct RangeFit<'a> {
     colourset: &'a ColourSet,
-    format: Format,
+    is_bc1: bool,
     weights: Vec3,
     start: Vec3,
     end: Vec3,
@@ -41,10 +41,10 @@ pub struct RangeFit<'a> {
 }
 
 impl<'a> RangeFit<'a> {
-    pub fn new(colourset: &'a ColourSet, format: Format, weights: ColourWeights) -> Self {
+    pub fn new(colourset: &'a ColourSet, is_bc1: bool, weights: ColourWeights) -> Self {
         let mut fit = RangeFit {
             colourset,
-            format,
+            is_bc1,
             weights: Vec3::new(weights[0], weights[1], weights[2]),
             start: Vec3::new(0.0, 0.0, 0.0),
             end: Vec3::new(0.0, 0.0, 0.0),
@@ -145,7 +145,7 @@ impl<'a> RangeFit<'a> {
 
 impl<'a> ColourFitImpl<'a> for RangeFit<'a> {
     fn is_bc1(&self) -> bool {
-        self.format == Format::Bc1
+        self.is_bc1
     }
 
     fn is_transparent(&self) -> bool {

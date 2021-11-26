@@ -25,14 +25,13 @@ use core::u32;
 use crate::colourblock;
 use crate::colourset::ColourSet;
 use crate::math::{f32_to_i32_clamped, Vec3};
-use crate::Format;
 
 use super::single_lut::*;
 use super::ColourFitImpl;
 
 pub struct SingleColourFit<'a> {
     colourset: &'a ColourSet,
-    format: Format,
+    is_bc1: bool,
     start: Vec3,
     end: Vec3,
     index: u8,
@@ -42,10 +41,10 @@ pub struct SingleColourFit<'a> {
 }
 
 impl<'a> SingleColourFit<'a> {
-    pub fn new(colourset: &'a ColourSet, format: Format) -> Self {
+    pub fn new(colourset: &'a ColourSet, is_bc1: bool) -> Self {
         SingleColourFit {
             colourset,
-            format,
+            is_bc1,
             start: Vec3::new(0.0, 0.0, 0.0),
             end: Vec3::new(0.0, 0.0, 0.0),
             index: 0,
@@ -108,7 +107,7 @@ impl<'a> SingleColourFit<'a> {
 
 impl<'a> ColourFitImpl<'a> for SingleColourFit<'a> {
     fn is_bc1(&self) -> bool {
-        self.format == Format::Bc1
+        self.is_bc1
     }
 
     fn is_transparent(&self) -> bool {

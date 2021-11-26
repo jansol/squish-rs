@@ -26,7 +26,7 @@ use core::f32;
 use crate::colourblock;
 use crate::colourset::ColourSet;
 use crate::math::{Sym3x3, Vec3, Vec4};
-use crate::{ColourWeights, Format};
+use crate::ColourWeights;
 
 use super::ColourFitImpl;
 
@@ -34,7 +34,7 @@ const MAX_ITERATIONS: usize = 8;
 
 pub struct ClusterFit<'a> {
     colourset: &'a ColourSet,
-    format: Format,
+    is_bc1: bool,
     weights: Vec4,
     num_iterations: usize,
     principle: Vec3,
@@ -48,13 +48,13 @@ pub struct ClusterFit<'a> {
 impl<'a> ClusterFit<'a> {
     pub fn new(
         colourset: &'a ColourSet,
-        format: Format,
+        is_bc1: bool,
         weights: ColourWeights,
         iterate: bool,
     ) -> Self {
         let mut fit = ClusterFit {
             colourset,
-            format,
+            is_bc1,
             weights: Vec4::new(weights[0], weights[1], weights[2], 1.0),
             num_iterations: if iterate { MAX_ITERATIONS } else { 1 },
             principle: Vec3::new(0.0, 0.0, 0.0),
@@ -138,7 +138,7 @@ impl<'a> ClusterFit<'a> {
 
 impl<'a> ColourFitImpl<'a> for ClusterFit<'a> {
     fn is_bc1(&self) -> bool {
-        self.format == Format::Bc1
+        self.is_bc1
     }
 
     fn is_transparent(&self) -> bool {

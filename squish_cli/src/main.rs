@@ -25,7 +25,9 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use ddsfile::{AlphaMode, D3D10ResourceDimension, D3DFormat, Dds, DxgiFormat};
-use squish::{Algorithm, Format, Params, COLOUR_WEIGHTS_PERCEPTUAL};
+use squish::{
+    Algorithm, Decoder, Encoder, Params, BC1, BC2, BC3, BC4, BC5, COLOUR_WEIGHTS_PERCEPTUAL,
+};
 use structopt::StructOpt;
 
 mod image;
@@ -34,6 +36,54 @@ enum Profile {
     Speed,
     Balanced,
     Quality,
+}
+
+#[derive(Debug, PartialEq)]
+enum Format {
+    Bc1,
+    Bc2,
+    Bc3,
+    Bc4,
+    Bc5,
+}
+
+impl Format {
+    fn compressed_size(&self, width: usize, height: usize) -> usize {
+        match self {
+            Format::Bc1 => BC1::compressed_size(width, height),
+            Format::Bc2 => BC2::compressed_size(width, height),
+            Format::Bc3 => BC3::compressed_size(width, height),
+            Format::Bc4 => BC4::compressed_size(width, height),
+            Format::Bc5 => BC5::compressed_size(width, height),
+        }
+    }
+
+    fn compress(
+        &self,
+        rgba: &[u8],
+        width: usize,
+        height: usize,
+        params: Params,
+        output: &mut [u8],
+    ) {
+        match self {
+            Format::Bc1 => BC1::compress(rgba, width, height, params, output),
+            Format::Bc2 => BC2::compress(rgba, width, height, params, output),
+            Format::Bc3 => BC3::compress(rgba, width, height, params, output),
+            Format::Bc4 => BC4::compress(rgba, width, height, params, output),
+            Format::Bc5 => BC5::compress(rgba, width, height, params, output),
+        }
+    }
+
+    fn decompress(&self, data: &[u8], width: usize, height: usize, output: &mut [u8]) {
+        match self {
+            Format::Bc1 => BC1::decompress(data, width, height, output),
+            Format::Bc2 => BC2::decompress(data, width, height, output),
+            Format::Bc3 => BC3::decompress(data, width, height, output),
+            Format::Bc4 => BC4::decompress(data, width, height, output),
+            Format::Bc5 => BC5::decompress(data, width, height, output),
+        }
+    }
 }
 
 #[derive(StructOpt)]
@@ -216,7 +266,6 @@ fn format_to_dxgiformat(f: Format) -> DxgiFormat {
         Format::Bc3 => DxgiFormat::BC3_UNorm_sRGB,
         Format::Bc4 => DxgiFormat::BC4_UNorm,
         Format::Bc5 => DxgiFormat::BC5_UNorm,
-        _ => panic!("Unsupported BC format!"),
     }
 }
 
