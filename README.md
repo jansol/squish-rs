@@ -1,3 +1,6 @@
+# Archival note
+This repo is archived in interest of keeping the original RIIR of libsquish intact and easily searchable. Further development has been moved to [texpresso](https://github.com/jansol/texpresso).
+
 # Squish-rs
 A pure Rust reimplementation of Simon Brown's libsquish.
 
